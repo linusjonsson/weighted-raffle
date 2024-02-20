@@ -40,12 +40,12 @@ func WeightedRaffle(items []Item, participants map[string]*Participant, winners 
 
 		// Display users eligible to win and their current chance of winning for the current item
 		fmt.Printf("Item %s with value %d\n", item.Name, item.Value)
-		displayEligibleParticipants(item.ParticipantNames, participants, item.Name)
-		/*
-			// Prompt user to confirm before proceeding
-			fmt.Println("Press Enter to reveal the winner...")
-			fmt.Scanln()
-		*/
+		displayEligibleParticipants(item.ParticipantNames, participants)
+
+		// Prompt user to confirm before proceeding
+		fmt.Println("Press Enter to reveal the winner...")
+		fmt.Scanln()
+
 		// Pick a winner based on their chance of winning
 		winner := pickWinner(item.ParticipantNames, participants, item.Name)
 
@@ -56,20 +56,19 @@ func WeightedRaffle(items []Item, participants map[string]*Participant, winners 
 		fmt.Printf("Winner for item %s with value %d: %s\n", item.Name, item.Value, winner)
 		winners[item.Name] = winner // Store the winner for the current item
 		fmt.Println("-----------------------------")
-		/*
-			// Ask the winner if they want to remain in the following drawings
-			fmt.Printf("Would you like to remain in the following drawings, %s? (yes/no): ", winner)
-			var response string
-			fmt.Scanln(&response)
 
-			// If the winner chooses to opt out, remove them from future items and the participants map
-			if strings.ToLower(response) != "yes" {
-				for _, participantName := range item.ParticipantNames {
-					delete(participants[participantName].Wins, item.Name)
-				}
-				fmt.Printf("%s has opted out and will be removed from future drawings.\n", winner)
+		// Ask the winner if they want to remain in the following drawings
+		fmt.Printf("Would you like to remain in the following drawings, %s? (yes/no): ", winner)
+		var response string
+		fmt.Scanln(&response)
+
+		// If the winner chooses to opt out, remove them from future items and the participants map
+		if strings.ToLower(response) != "yes" {
+			for _, participantName := range item.ParticipantNames {
+				delete(participants[participantName].Wins, item.Name)
 			}
-		*/
+			fmt.Printf("%s has opted out and will be removed from future drawings.\n", winner)
+		}
 	}
 
 	return nil
@@ -120,7 +119,7 @@ func pickWinner(participantNames []string, participants map[string]*Participant,
 }
 
 // displayEligibleParticipants displays the eligible participants for the current item and their total previous wins
-func displayEligibleParticipants(participantNames []string, participants map[string]*Participant, itemName string) {
+func displayEligibleParticipants(participantNames []string, participants map[string]*Participant) {
 	fmt.Println("Eligible Participants:")
 	for _, name := range participantNames {
 		totalWins := 0
