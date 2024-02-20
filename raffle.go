@@ -14,14 +14,14 @@ import (
 // Participant represents a participant in the raffle with their name and wins
 type Participant struct {
 	Name string
-	Wins int
+	Wins map[string]bool // Map of item names indicating if the participant has won the item
 }
 
 // Item represents an item in the raffle with its name, value, and participants
 type Item struct {
-	Name         string
-	Value        int
-	Participants map[string]int // Map of participants and their wins for the current item
+	Name             string
+	Value            int
+	ParticipantNames []string // Array of participant names for the current item
 }
 
 // WeightedRaffle picks a winner from the provided items based on their values and participants
@@ -34,42 +34,42 @@ func WeightedRaffle(items []Item, participants map[string]*Participant, winners 
 
 	// Iterate over items and pick a winner for each item
 	for _, item := range items {
-		if len(item.Participants) == 0 {
+		if len(item.ParticipantNames) == 0 {
 			continue // Skip items with no participants
 		}
 
 		// Display users eligible to win and their current chance of winning for the current item
 		fmt.Printf("Item %s with value %d\n", item.Name, item.Value)
-		displayEligibleParticipants(item.Participants, participants)
-
-		// Prompt user to confirm before proceeding
-		fmt.Println("Press Enter to reveal the winner...")
-		fmt.Scanln()
-
+		displayEligibleParticipants(item.ParticipantNames, participants, item.Name)
+		/*
+			// Prompt user to confirm before proceeding
+			fmt.Println("Press Enter to reveal the winner...")
+			fmt.Scanln()
+		*/
 		// Pick a winner based on their chance of winning
-		winner := pickWinner(item.Participants)
+		winner := pickWinner(item.ParticipantNames, participants, item.Name)
 
 		// Update wins for the winner
-		participants[winner].Wins++
+		participants[winner].Wins[item.Name] = true
 
 		// Print the winner for the current item
 		fmt.Printf("Winner for item %s with value %d: %s\n", item.Name, item.Value, winner)
 		winners[item.Name] = winner // Store the winner for the current item
 		fmt.Println("-----------------------------")
+		/*
+			// Ask the winner if they want to remain in the following drawings
+			fmt.Printf("Would you like to remain in the following drawings, %s? (yes/no): ", winner)
+			var response string
+			fmt.Scanln(&response)
 
-		// Ask the winner if they want to remain in the following drawings
-		fmt.Printf("Would you like to remain in the following drawings, %s? (yes/no): ", winner)
-		var response string
-		fmt.Scanln(&response)
-
-		// If the winner chooses to opt out, remove them from future items and the participants map
-		if strings.ToLower(response) != "yes" {
-			for _, futureItem := range items {
-				delete(futureItem.Participants, winner)
+			// If the winner chooses to opt out, remove them from future items and the participants map
+			if strings.ToLower(response) != "yes" {
+				for _, participantName := range item.ParticipantNames {
+					delete(participants[participantName].Wins, item.Name)
+				}
+				fmt.Printf("%s has opted out and will be removed from future drawings.\n", winner)
 			}
-			delete(participants, winner)
-			fmt.Printf("%s has opted out and will be removed from future drawings.\n", winner)
-		}
+		*/
 	}
 
 	return nil
@@ -82,46 +82,55 @@ func sortItemsByValue(items []Item) {
 	})
 }
 
-// pickWinner picks a winner based on their chance of winning
-func pickWinner(participants map[string]int) string {
-	totalWins := calculateTotalWins(participants)
-	var totalChance float64
+// pickWinner picks a winner from the provided participant names based on their chance of winning
+func pickWinner(participantNames []string, participants map[string]*Participant, itemName string) string {
+	var totalTickets float64
+	tickets := make(map[string]float64)
 
-	// Calculate total chance considering previous wins
-	for _, wins := range participants {
-		totalChance += 1.0/1 + totalWins - float64(wins)
+	// Calculate total tickets and assign tickets to each participant
+	for _, name := range participantNames {
+		// Calculate the number of tickets for the participant
+		ticket := 1.0 / float64(1+len(participants[name].Wins))
+
+		// Add the ticket to the total
+		totalTickets += ticket
+
+		// Assign the ticket to the participant
+		tickets[name] = ticket
 	}
 
-	// Generate a random number between 0 and totalChance
-	randomNumber := rand.Float64() * totalChance
+	// Generate a random number between 0 and totalTickets
+	randomNumber := rand.Float64() * totalTickets
 
-	// Iterate over participants to determine the winner
-	for participant, wins := range participants {
-		chance := 1.0/1 + totalWins - float64(wins)
-		if randomNumber <= chance {
-			return participant
+	// Determine the winner based on the random number
+	var cumulativeTickets float64
+	for name, ticket := range tickets {
+		// Add the current participant's ticket to the cumulativeTickets
+		cumulativeTickets += ticket
+
+		// If the random number falls within the range of the current participant's tickets
+		// (from cumulativeTickets - ticket to cumulativeTickets), return the participant as the winner
+		if randomNumber <= cumulativeTickets {
+			return name
 		}
-		randomNumber -= chance
 	}
 
-	return "" // Should never reach here
+	// Return an empty string if no winner is found (should never reach here)
+	return ""
 }
 
-// calculateTotalWins calculates the total wins across all participants
-func calculateTotalWins(participants map[string]int) float64 {
-	totalWins := 0.0
-	for _, wins := range participants {
-		totalWins += float64(wins)
-	}
-	return totalWins
-}
-
-// displayEligibleParticipants displays the eligible participants for the current item and their previous wins
-func displayEligibleParticipants(participants map[string]int, allParticipants map[string]*Participant) {
+// displayEligibleParticipants displays the eligible participants for the current item and their total previous wins
+func displayEligibleParticipants(participantNames []string, participants map[string]*Participant, itemName string) {
 	fmt.Println("Eligible Participants:")
-	for participant := range participants {
-		totalWins := allParticipants[participant].Wins
-		fmt.Printf("- Participant: %s, Previous Wins: %d\n", participant, totalWins)
+	for _, name := range participantNames {
+		totalWins := 0
+		// Count the total wins for the current participant based on the Wins map for the specified item
+		for _, hasWon := range participants[name].Wins {
+			if hasWon {
+				totalWins++
+			}
+		}
+		fmt.Printf("- Participant: %s, Total Previous Wins: %d\n", name, totalWins)
 	}
 }
 
@@ -198,21 +207,21 @@ func main() {
 
 		// Parse participants for the current item
 		participantNames := record[2:]
-		participantsForItem := make(map[string]int)
-		for _, participantName := range participantNames {
+		participantsForItem := make([]string, len(participantNames))
+		for i, participantName := range participantNames {
 			participantName = strings.TrimSpace(participantName)
-			participantsForItem[participantName] = 0 // Initialize wins for the participant for the current item
+			participantsForItem[i] = participantName
 			// Update total wins for the participant across all items
 			if _, ok := participants[participantName]; !ok {
-				participants[participantName] = &Participant{Name: participantName, Wins: 0}
+				participants[participantName] = &Participant{Name: participantName, Wins: make(map[string]bool)}
 			}
 		}
 
 		// Create new item with participants
 		item := Item{
-			Name:         record[0],
-			Value:        value,
-			Participants: participantsForItem,
+			Name:             record[0],
+			Value:            value,
+			ParticipantNames: participantsForItem,
 		}
 
 		// Append item to items slice
